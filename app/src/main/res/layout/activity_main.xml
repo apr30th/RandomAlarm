@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <TimePicker
+        android:id="@+id/timePicker"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:timePickerMode="spinner" />
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="범위 (분):"
+        app:layout_constraintTop_toBottomOf="@id/timePicker" />
+
+    <NumberPicker
+        android:id="@+id/numberPicker"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:descendantFocusability="blocksDescendants"
+        app:layout_constraintTop_toBottomOf="@id/textView" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_gravity="center">
+
+        <Button
+            android:id="@+id/setAlarmButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="알람 설정"/>
+
+        <Button
+            android:id="@+id/getAlarmButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="알람 보기"
+            android:onClick="getAlarm"/>
+
+        <Button
+            android:id="@+id/cancelAlarmButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="알람 삭제"
+            android:onClick="cancelAlarm"/>
+
+
+    </LinearLayout>
+</LinearLayout>

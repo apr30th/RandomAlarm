@@ -2,12 +2,11 @@ package com.example.randomalarm
 
 import android.app.AlarmManager
 import android.app.PendingIntent
-import android.app.PendingIntent.FLAG_UPDATE_CURRENT
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import android.os.VibrationEffect
-import android.os.Vibrator
+import android.provider.Settings
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -17,13 +16,15 @@ import java.util.Random
 
 class MainActivity : AppCompatActivity() {
     private lateinit var alarmManager: AlarmManager
-    private lateinit var alarmPendingIntent: PendingIntent// 알람을 위한 PendingIntent 변수 추가
+    private lateinit var alarmPendingIntent: PendingIntent
     private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // UI 초기화
         binding.numberPicker.minValue = 1
         binding.numberPicker.maxValue = 60
 
@@ -33,41 +34,47 @@ class MainActivity : AppCompatActivity() {
             val range = binding.numberPicker.value
             setAlarm(hour, minute, range)
         }
+
+        binding.cancelAlarmButton.setOnClickListener {
+            cancelAlarm()
+        }
+
         alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
     }
 
-    fun setAlarm(hour: Int, minute: Int, range: Int) {
-        val currentTime = Calendar.getInstance()
+    private fun checkAndRequestExactAlarmPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            }
+        }
+    }
 
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val alarmIntent = Intent(this, AlarmReceiver::class.java)
+    private fun setAlarm(hour: Int, minute: Int, range: Int) {
+        checkAndRequestExactAlarmPermission() // 권한 확인 및 요청
 
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.HOUR_OF_DAY, hour)
-        calendar.set(Calendar.MINUTE, minute)
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
 
-        // 진동 설정
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        if (vibrator.hasVibrator()) {
-            val vibrationEffect = VibrationEffect.createOneShot(1000, VibrationEffect.DEFAULT_AMPLITUDE)
-            vibrator.vibrate(vibrationEffect)
+            // 랜덤 범위 추가
+            val random = Random()
+            val randomMinutes = random.nextInt(range * 2 + 1) - range
+            add(Calendar.MINUTE, randomMinutes)
         }
 
-        // 알람이 울릴 날짜 설정 (매일)
-        calendar.set(Calendar.DAY_OF_MONTH, currentTime.get(Calendar.DAY_OF_MONTH))
-        calendar.set(Calendar.MONTH, currentTime.get(Calendar.MONTH))
-        calendar.set(Calendar.YEAR, currentTime.get(Calendar.YEAR))
-
-        val random = Random()
-        val randomMinutes = random.nextInt(range*2+1) - range
-
-        calendar.add(Calendar.MINUTE, randomMinutes)
-
-        val alarmHour = calendar.get(Calendar.HOUR)
+        // 알람 시간 표시
+        val alarmHour = calendar.get(Calendar.HOUR_OF_DAY)
         val alarmMinute = calendar.get(Calendar.MINUTE)
 
+        // 알람 정보 저장
         val sharedPref = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
-        // SharedPreferences에 알람 정보 저장
         with(sharedPref.edit()) {
             putInt("hour", alarmHour)
             putInt("minute", alarmMinute)
@@ -75,41 +82,49 @@ class MainActivity : AppCompatActivity() {
             apply()
         }
 
+        // PendingIntent 생성
+        val alarmIntent = Intent(this, AlarmReceiver::class.java)
+        alarmPendingIntent = PendingIntent.getBroadcast(
+            this,
+            0,
+            alarmIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
-        alarmPendingIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, FLAG_UPDATE_CURRENT)
-        alarmManager.setRepeating(
+        // 정확한 알람 설정
+        alarmManager.setExactAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
             calendar.timeInMillis,
-            AlarmManager.INTERVAL_DAY, // 매일 반복
             alarmPendingIntent
         )
 
-        Toast.makeText(this, "알람 설정 : $alarmHour 시 $alarmMinute 분", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "알람 설정 완료: ${alarmHour}시 ${alarmMinute}분", Toast.LENGTH_SHORT).show()
     }
 
     fun getAlarm(view: View) {
         val sharedPref = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
         val hour = sharedPref.getInt("hour", -1)
         val minute = sharedPref.getInt("minute", -1)
+
         if (hour != -1 && minute != -1) {
             val range = sharedPref.getInt("range", 0)
-            Toast.makeText(this, "설정된 알람 : $hour 시 $minute 분", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "설정된 알람: ${hour}시 ${minute}분", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(this, "설정된 알람이 없습니다.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    fun cancelAlarm(view: View) {
+
+
+    private fun cancelAlarm() {
         if (::alarmPendingIntent.isInitialized) {
             alarmManager.cancel(alarmPendingIntent)
             Toast.makeText(this, "알람이 취소되었습니다.", Toast.LENGTH_SHORT).show()
 
-            // SharedPreferences에 저장된 알람 정보 제거
+            // 저장된 알람 정보 제거
             val sharedPref = getSharedPreferences("AlarmPreferences", Context.MODE_PRIVATE)
             with(sharedPref.edit()) {
-                remove("hour")
-                remove("minute")
-                remove("range")
+                clear()
                 apply()
             }
         } else {
